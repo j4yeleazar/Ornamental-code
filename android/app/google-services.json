@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "684159561500",
+    "project_id": "ornamental-app",
+    "storage_bucket": "ornamental-app.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:684159561500:android:340ac9b81cfff6b18c54d9",
+        "android_client_info": {
+          "package_name": "com.example.ornamental"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBDtA4QVVc7It6WO1iTfEkmy5FtAaDrScE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
