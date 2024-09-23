@@ -1,7 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:ornamental/page/home/home.dart';
+import 'package:ornamental/page/homepage.dart';
 import 'package:ornamental/page/loginpage.dart';
 
 class AuthService {
@@ -10,9 +12,19 @@ class AuthService {
       required String password,
       required BuildContext context}) async {
     try {
-      await FirebaseAuth.instance
+      // Sign up the user with Firebase Authentication
+      UserCredential userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: email, password: password);
 
+      // Store the username (before the '@' in email) in Firestore
+      await FirebaseFirestore.instance
+          .collection("Users")
+          .doc(userCredential.user!.email) // Use email as document ID
+          .set({
+        'username': email.split('@')[0],
+      });
+
+      // Navigate to Home page after a short delay
       await Future.delayed(const Duration(seconds: 1));
       Navigator.pushReplacement(context,
           MaterialPageRoute(builder: (BuildContext context) => const Home()));
@@ -31,9 +43,19 @@ class AuthService {
         textColor: Colors.white,
         fontSize: 14.0,
       );
-    } catch (e) {}
+    } catch (e) {
+      Fluttertoast.showToast(
+        msg: 'An error occurred while signing up. Please try again.',
+        toastLength: Toast.LENGTH_LONG,
+        gravity: ToastGravity.SNACKBAR,
+        backgroundColor: Colors.black54,
+        textColor: Colors.white,
+        fontSize: 14.0,
+      );
+    }
   }
 
+  // Other methods (signin, signout) remain unchanged
   Future<void> signin(
       {required String email,
       required String password,
@@ -43,8 +65,10 @@ class AuthService {
           .signInWithEmailAndPassword(email: email, password: password);
 
       await Future.delayed(const Duration(seconds: 1));
-      Navigator.pushReplacement(context,
-          MaterialPageRoute(builder: (BuildContext context) => const Home()));
+      Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+              builder: (BuildContext context) => const HomePage()));
     } on FirebaseAuthException catch (e) {
       String message = '';
       if (e.code == 'invalid-email') {

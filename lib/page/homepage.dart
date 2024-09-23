@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:ornamental/page/profilepage.dart';
 import 'package:ornamental/page/savepage.dart';
+import 'package:ornamental/widget/addplant.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:ornamental/page/result.dart';
 import 'package:ornamental/widget/takephoto.dart';
@@ -86,7 +88,7 @@ class _HomePageState extends State<HomePage> {
           },
           tabs: const [
             GButton(icon: Icons.home, text: 'Home'),
-            GButton(icon: Icons.history, text: 'History'),
+            GButton(icon: Icons.add_circle_outlined, text: 'Add Plant'),
             GButton(icon: Icons.bookmarks, text: 'Saved'),
             GButton(icon: Icons.person, text: 'Profile'),
           ],
@@ -102,11 +104,11 @@ class _HomePageState extends State<HomePage> {
           imageselected: handlepickImagedata,
         );
       case 1:
-        return const Center(child: Text('History Page'));
+        return const AddNewPlant();
       case 2:
         return const SavePage();
       case 3:
-        return const Center(child: Text('Profile Page'));
+        return const ProfilePage();
       default:
         return const Center(child: Text('Page not found'));
     }

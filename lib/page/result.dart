@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:ornamental/model/savefav.dart';
 import 'package:ornamental/page/savepage.dart';
 import 'package:ornamental/utils/functions.dart';
+import 'package:ornamental/widget/addplant.dart';
 import 'package:ornamental/widget/panelgraph.dart';
 import 'package:ornamental/widget/pantpageview.dart';
 import 'package:path_provider/path_provider.dart';
@@ -52,7 +53,7 @@ class _ShowResultState extends State<ShowResult> {
   Future<void> imageClassification() async {
     try {
       var imgClassification = await Tflite.runModelOnImage(
-        path: widget.ishome == true
+        path: widget.ishome
             ? widget.selectedimage.path
             : widget.imageselect!.path,
         numResults: 14,
@@ -62,9 +63,20 @@ class _ShowResultState extends State<ShowResult> {
         asynch: true,
       );
       setState(() {
-        _result = imgClassification!;
+        _result = imgClassification ?? [];
         isloading = false;
       });
+
+      // Check if any result has a confidence above 90%
+      if (_result != null && _result!.isNotEmpty) {
+        bool isAboveThreshold = _result!.any(
+          (element) => element['confidence'] * 100 > 90,
+        );
+
+        if (!isAboveThreshold) {
+          _showAddPlantDialog(); // Call the function to show the dialog
+        }
+      }
 
       debugPrint("$_result");
     } catch (error) {
@@ -131,16 +143,14 @@ class _ShowResultState extends State<ShowResult> {
 
   Future<void> savePlantResult(String plantName, double accuracy,
       String imagePath, String description) async {
-    // Reference to the Firestore collection
     CollectionReference plantResults =
         FirebaseFirestore.instance.collection('plant_results');
 
-    // Add a new document with the plant's result
     await plantResults.add({
       'plant_name': plantName,
       'accuracy': accuracy,
       'image_path': imagePath,
-      'description': description, // Include description
+      'description': description,
       'timestamp': FieldValue.serverTimestamp(),
     });
   }
@@ -170,24 +180,21 @@ class _ShowResultState extends State<ShowResult> {
       await imageFile.copy(imagePath);
       debugPrint(imagePath);
 
-      // Define the description
       String description = "Description for ${_result![0]['label']}";
 
-      // Save to Firestore with the description
       await savePlantResult(
         _result![0]['label'],
         _result![0]['confidence'],
         imagePath,
-        description, // Pass description here
+        description,
       );
 
-      // Save the bookmark locally with the description
       bookmarkState.toggleBookmark(
         id: "${_result![0]['label']}$randomid",
         path: imagePath,
         title: "${_result![0]['label']}",
         disc: formattedDisc,
-        description: description, // Add description here
+        description: description,
       );
 
       debugPrint("save");
@@ -198,6 +205,42 @@ class _ShowResultState extends State<ShowResult> {
     } catch (e) {
       debugPrint("Error saving file: $e");
     }
+  }
+
+  void _showAddPlantDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Result Not Found'),
+          content: const Text(
+              'The result is not above 90%. Would you like to add this plant?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('No'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _addNewPlant();
+              },
+              child: const Text('Yes'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _addNewPlant() {
+    debugPrint('User wants to add the plant');
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddNewPlant()),
+    );
   }
 
   @override
@@ -223,10 +266,20 @@ class _ShowResultState extends State<ShowResult> {
       extendBody: true,
       appBar: AppBar(
         backgroundColor: const Color(0xff88B648),
-        automaticallyImplyLeading: false,
-        title: const Text(
-          "Ornamental Plants",
-          style: TextStyle(color: Colors.white),
+        automaticallyImplyLeading: false, // Custom back button added
+        title: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () {
+                Navigator.pop(context); // Navigate back
+              },
+            ),
+            const Text(
+              "Ornamental Plants",
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
         ),
         actions: [
           IconButton(
@@ -237,15 +290,6 @@ class _ShowResultState extends State<ShowResult> {
                 Icons.camera_outlined,
                 color: Colors.white,
               )),
-          // IconButton(
-          //     onPressed: () {
-          //       setState(() {});
-          //     },
-          //     icon: const Icon(
-          //       Icons.refresh,
-          //       color: Colors.white,
-          //     ))
-
           issaving == false
               ? IconButton(
                   onPressed: () {
@@ -283,8 +327,7 @@ class _ShowResultState extends State<ShowResult> {
                               image: DecorationImage(
                                 image:
                                     FileImage(File(widget.selectedimage.path)),
-                                fit: BoxFit
-                                    .cover, // Adjust the fit as per your requirement
+                                fit: BoxFit.cover,
                               ),
                             ))
                         : Container(
@@ -293,8 +336,7 @@ class _ShowResultState extends State<ShowResult> {
                               borderRadius: BorderRadius.circular(10),
                               image: const DecorationImage(
                                 image: AssetImage('assets/image/plant.png'),
-                                fit: BoxFit
-                                    .cover, // Adjust the fit as per your requirement
+                                fit: BoxFit.cover,
                               ),
                             ))),
                 const SizedBox(width: 10),
@@ -362,10 +404,6 @@ class _ShowResultState extends State<ShowResult> {
               currentPageNotifier: _currentPageNotifier,
               pageController: _pageController,
               result: _result),
-
-          // ValueListenableBuilder(valueListenable: _currentPageNotifier, builder: (context, current,_){
-          //   if(current)
-          // })
           currentLabelint != null || currentLabelint == "No result"
               ? panelGraph(currentLabelint!, widthsize)
               : const Text("No Result")

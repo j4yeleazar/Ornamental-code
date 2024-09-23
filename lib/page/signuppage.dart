@@ -74,7 +74,7 @@ class Signup extends StatelessWidget {
           controller: _emailController,
           decoration: InputDecoration(
               filled: true,
-              hintText: 'jay.eleazar75@gmail.com',
+              hintText: 'Email',
               hintStyle: const TextStyle(
                   color: Color(0xff6A6A6A),
                   fontWeight: FontWeight.normal,
