@@ -23,19 +23,31 @@ class _SavePageState extends State<SavePage> {
     var bookmarkState = Provider.of<BookmarkState>(context, listen: false);
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading: false, // Disable the default back button
         iconTheme: const IconThemeData(color: Colors.white),
         titleTextStyle: const TextStyle(color: Colors.white, fontSize: 19),
         backgroundColor: const Color(0xFF1B5E20),
-        title: const Text("Saved Page"),
+        title: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () {
+                Navigator.pop(context); // Navigate back to the previous screen
+              },
+              color: Colors.white,
+            ),
+            const Text("Saved Page"),
+          ],
+        ),
         actions: [
           IconButton(
-              onPressed: () {
-                setState(() {
-                  selectedItem = null;
-                });
-              },
-              icon: const Icon(Icons.refresh))
+            onPressed: () {
+              setState(() {
+                selectedItem = null;
+              });
+            },
+            icon: const Icon(Icons.refresh),
+          )
         ],
       ),
       body: SingleChildScrollView(

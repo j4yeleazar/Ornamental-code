@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tflite/flutter_tflite.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,6 +14,7 @@ import 'package:ornamental/widget/panelgraph.dart';
 import 'package:ornamental/widget/pantpageview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ShowResult extends StatefulWidget {
   final XFile selectedimage;
@@ -38,6 +40,7 @@ class _ShowResultState extends State<ShowResult> {
   String? errorMessage;
   String? currentLabelint;
   bool issaving = false;
+  bool isBookmarked = false; // New state to track bookmark status
   final ValueNotifier<int> _currentPageNotifier = ValueNotifier<int>(0);
 
   Future<void> loadModel() async {
@@ -96,6 +99,11 @@ class _ShowResultState extends State<ShowResult> {
     _currentPageNotifier.addListener(() {
       _updateCurrentLabel();
     });
+
+    // Check if the current image is already bookmarked
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      checkIfBookmarked(); // Call the function after the first frame is rendered
+    });
   }
 
   @override
@@ -104,6 +112,14 @@ class _ShowResultState extends State<ShowResult> {
       _updateCurrentLabel();
     });
     super.dispose();
+  }
+
+  void checkIfBookmarked() {
+    var bookmarkState = Provider.of<BookmarkState>(context, listen: false);
+    setState(() {
+      // Check if the current image is already bookmarked
+      isBookmarked = bookmarkState.isBookmarked(widget.selectedimage.path);
+    });
   }
 
   void resultonlyone() {
@@ -142,17 +158,46 @@ class _ShowResultState extends State<ShowResult> {
   }
 
   Future<void> savePlantResult(String plantName, double accuracy,
-      String imagePath, String description) async {
-    CollectionReference plantResults =
-        FirebaseFirestore.instance.collection('plant_results');
+      File imageFile, String description) async {
+    try {
+      String downloadUrl = await uploadImageToFirebase(imageFile);
 
-    await plantResults.add({
-      'plant_name': plantName,
-      'accuracy': accuracy,
-      'image_path': imagePath,
-      'description': description,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+      if (downloadUrl.isNotEmpty) {
+        CollectionReference plantResults =
+            FirebaseFirestore.instance.collection('plant_results');
+        String uid = FirebaseAuth.instance.currentUser?.uid ??
+            ''; // Get current user's UID
+
+        await plantResults.add({
+          'uid': uid, // Store the user's UID
+          'plant_name': plantName,
+          'accuracy': accuracy,
+          'image_url':
+              downloadUrl, // Store the image URL instead of the local path
+          'description': description,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      debugPrint("Error saving plant result: $e");
+    }
+  }
+
+  Future<String> uploadImageToFirebase(File imageFile) async {
+    try {
+      String fileName =
+          'plant_images/${DateTime.now().millisecondsSinceEpoch}.png';
+      Reference storageRef = FirebaseStorage.instance.ref().child(fileName);
+      UploadTask uploadTask = storageRef.putFile(imageFile);
+
+      TaskSnapshot taskSnapshot = await uploadTask.whenComplete(() => {});
+      String downloadUrl = await taskSnapshot.ref.getDownloadURL();
+
+      return downloadUrl;
+    } catch (e) {
+      debugPrint('Error uploading image: $e');
+      return '';
+    }
   }
 
   Future<void> handlesave() async {
@@ -185,7 +230,7 @@ class _ShowResultState extends State<ShowResult> {
       await savePlantResult(
         _result![0]['label'],
         _result![0]['confidence'],
-        imagePath,
+        imageFile,
         description,
       );
 
@@ -197,11 +242,12 @@ class _ShowResultState extends State<ShowResult> {
         description: description,
       );
 
-      debugPrint("save");
-
       setState(() {
         issaving = false;
+        isBookmarked = true; // Mark as bookmarked
       });
+
+      debugPrint("save");
     } catch (e) {
       debugPrint("Error saving file: $e");
     }
@@ -241,6 +287,16 @@ class _ShowResultState extends State<ShowResult> {
       context,
       MaterialPageRoute(builder: (context) => const AddNewPlant()),
     );
+  }
+
+  Stream<QuerySnapshot> getUserSavedPlants() {
+    String uid =
+        FirebaseAuth.instance.currentUser?.uid ?? ''; // Get current user's UID
+    return FirebaseFirestore.instance
+        .collection('plant_results')
+        .where('uid',
+            isEqualTo: uid) // Fetch only the results of the current user
+        .snapshots();
   }
 
   @override
@@ -293,11 +349,17 @@ class _ShowResultState extends State<ShowResult> {
           issaving == false
               ? IconButton(
                   onPressed: () {
-                    handlesave();
+                    if (isBookmarked) {
+                      debugPrint("Already bookmarked");
+                    } else {
+                      handlesave();
+                    }
                   },
-                  icon: const Icon(
-                    Icons.favorite_outline,
-                    color: Colors.white,
+                  icon: Icon(
+                    isBookmarked
+                        ? Icons.favorite // Filled heart icon
+                        : Icons.favorite_outline, // Outline heart icon
+                    color: isBookmarked ? Colors.red : Colors.white,
                   ))
               : const LoadingAnimation(),
         ],
@@ -341,60 +403,52 @@ class _ShowResultState extends State<ShowResult> {
                             ))),
                 const SizedBox(width: 10),
                 Expanded(
-                    child: isloading == true
-                        ? const Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              LinearProgressIndicator(),
-                              SizedBox(
-                                child: Text(
-                                  "Analyzing your image Please Wait",
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              )
-                            ],
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(0),
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _result!.length,
-                            itemBuilder: (context, index) {
-                              if (index >= 3) {
-                                return const SizedBox.shrink();
-                              }
-                              double valueaccuracy =
-                                  _result![index]['confidence'];
-                              String accurary =
-                                  (valueaccuracy * 100).toStringAsFixed(0);
-                              String label =
-                                  _result![index]['label'].toString();
+                  child: isloading == true
+                      ? const Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            LinearProgressIndicator(),
+                            SizedBox(
+                              child: Text(
+                                "Analyzing your image Please Wait",
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            )
+                          ],
+                        )
+                      : _result != null && _result!.isNotEmpty
+                          ? (() {
+                              // Sort results to ensure the top confidence result is displayed
+                              _result!.sort((a, b) =>
+                                  b['confidence'].compareTo(a['confidence']));
+                              double topConfidence = _result![0]['confidence'];
+                              String topLabel = _result![0]['label']
+                                  .toString()
+                                  .replaceFirst(RegExp(r'^\d+\s*'), '');
 
-                              String processedLabel =
-                                  label.replaceFirst(RegExp(r'^\d+\s*'), '');
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 5.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      processedLabel,
-                                      style: TextStyle(
-                                          fontSize:
-                                              _result!.length > 1 ? 16 : 20,
-                                          color: Colors.white),
-                                    ),
-                                    Text(
-                                      "Accuracy: $accurary%",
-                                      style: const TextStyle(
-                                          fontSize: 10, color: Colors.white),
-                                    ),
-                                  ],
-                                ),
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Show only the result with the highest confidence
+                                  Text(
+                                    topLabel,
+                                    style: const TextStyle(
+                                        fontSize: 20, color: Colors.white),
+                                  ),
+                                  Text(
+                                    "Accuracy: ${(topConfidence * 100).toStringAsFixed(0)}%",
+                                    style: const TextStyle(
+                                        fontSize: 10, color: Colors.white),
+                                  ),
+                                ],
                               );
-                            }))
+                            })()
+                          : const Text(
+                              "No result found",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                ),
               ],
             ),
           ),
@@ -404,9 +458,9 @@ class _ShowResultState extends State<ShowResult> {
               currentPageNotifier: _currentPageNotifier,
               pageController: _pageController,
               result: _result),
-          currentLabelint != null || currentLabelint == "No result"
+          /* currentLabelint != null || currentLabelint == "No result"
               ? panelGraph(currentLabelint!, widthsize)
-              : const Text("No Result")
+              : const Text("No Result") */
         ],
       ),
     );

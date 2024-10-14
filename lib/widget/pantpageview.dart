@@ -24,39 +24,32 @@ class _PageViewPlantState extends State<PageViewPlant> {
   String? currentLabel;
 
   @override
+  void initState() {
+    super.initState();
+    // Sort the result to get the top confidence result first
+    if (widget._result != null && widget._result!.isNotEmpty) {
+      widget._result!
+          .sort((a, b) => b['confidence'].compareTo(a['confidence']));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    //double widthsize = MediaQuery.of(context).size.width;
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
         children: [
           SizedBox(
-              width: widget.widthsize,
-              height: 160,
-              child: PageView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padEnds: false,
-                  controller: widget._pageController,
-                  itemCount: widget._result!.length,
-                  itemBuilder: (context, index) {
-                    String label = widget._result![index]['label'].toString();
-
-                    String processedLabel =
-                        label.replaceFirst(RegExp(r'^\d+\s*'), '');
-                    return ValueListenableBuilder(
-                        valueListenable: widget.currentPageNotifier,
-                        builder: (context, currentPage, _) {
-                          if (currentPage == index) {
-                            String processedtext = widget._result![currentPage]
-                                    ['label']
-                                .toString();
-                            currentLabel = processedtext.replaceFirst(
-                                RegExp(r'^\d+\s*'), '');
-                            debugPrint("label $currentLabel");
-                          }
-                          return plantdescriptions(processedLabel);
-                        });
-                  })),
+            width: widget.widthsize,
+            height: 160,
+            child: widget._result != null && widget._result!.isNotEmpty
+                ? plantdescriptions(
+                    widget._result!.first['label']
+                        .toString()
+                        .replaceFirst(RegExp(r'^\d+\s*'), ''),
+                  )
+                : const Text("No Result Found"),
+          ),
           const SizedBox(height: 30),
         ],
       ),
