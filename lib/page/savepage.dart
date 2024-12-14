@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:ornamental/model/savefav.dart';
+import 'package:ornamental/page/homepage.dart';
 import 'package:provider/provider.dart';
 
 class SavePage extends StatefulWidget {
@@ -32,7 +33,16 @@ class _SavePageState extends State<SavePage> {
             IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: () {
-                Navigator.pop(context); // Navigate back to the previous screen
+                if (Navigator.canPop(context)) {
+                  Navigator.pop(
+                      context); // Navigate back to the previous screen
+                } else {
+                  // Redirect to home or any fallback screen
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => const HomePage()),
+                  );
+                }
               },
               color: Colors.white,
             ),
@@ -47,7 +57,7 @@ class _SavePageState extends State<SavePage> {
               });
             },
             icon: const Icon(Icons.refresh),
-          )
+          ),
         ],
       ),
       body: SingleChildScrollView(
